@@ -1,0 +1,29 @@
+{
+    "width": 4,
+    "height": 4,
+    "tilewidth": 32,
+    "tileheight": 32,
+    "infinite": false,
+    "orientation": "orthogonal",
+    "renderorder": "right-down",
+    "version": 1,
+    "tiledversion": "1.0.3",
+    "nextlayerid": 1,
+    "nextobjectid": 2,
+    "layers": [],
+    "tilesets": [],
+    "properties": [
+        {
+            "name": "mapProperty1",
+            "type": "string",
+            "value": "one"
+        },
+        {
+            "name": "mapProperty2",
+            "type": "string",
+            "value": "two"
+        }
+    ],
+    "backgroundcolor": "#656667",
+    "compressionlevel": 4
+}
