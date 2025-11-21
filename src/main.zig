@@ -1,63 +1,43 @@
-const rl = @import("raylib");
-const Color = rl.Color;
-const screenWidth = 800;
-const screenHeight = 450;
-const ss = @import("spritesheet.zig");
 const std = @import("std");
 const Allocator = std.mem.Allocator;
+const builtin = @import("builtin");
+const tiled = @import("tiled.zig");
+const ParseOptions = std.json.ParseOptions;
 
-//--------------------------------------------------------------------------------------
-// Program entry point
-//--------------------------------------------------------------------------------------
-pub fn main() anyerror!void {
-    //Initialization
-    //--------------------------------------------------------------------------------------
-    rl.initWindow(
-        screenWidth,
-        screenHeight,
-        "raylib [textures] example - image loading",
-    );
+fn read_text_file(allocator: Allocator, filepath: []const u8) ![]u8 {
+    const file = try std.fs.cwd().openFile(filepath, .{ .mode = .read_only });
+    defer file.close();
 
-    const image = try rl.loadImage("resources/characters2.png"); // Loaded in CPU memory (RAM)
-    const texture = try rl.loadTextureFromImage(image); // Image converted to texture, GPU memory (VRAM)
-    rl.unloadImage(image);
+    const fileSize = try file.getEndPos();
+    const buffer = try allocator.alloc(u8, fileSize);
 
-    defer rl.closeWindow();
-    defer rl.unloadTexture(texture);
-
-    var gpa = std.heap.DebugAllocator(.{}){};
-    defer _ = gpa.deinit();
-    const allocator = gpa.allocator();
-    var ls = try ss.load_spritesheet(allocator, "resources/characters2.json");
-    defer ls.deinit(allocator);
-
-    rl.setTargetFPS(60); // Set our game to run at 60 frames-per-second
-    // 293:122:334:100
-
-    const start: usize = @intFromFloat(rl.getTime() * 1000);
-    while (!rl.windowShouldClose()) {
-        // var sprite = undefined;
-        const current: usize = @intFromFloat(rl.getTime() * 1000);
-        const timelasp: usize = current - start;
-        const sprite_index = (timelasp / 500) % ls.items.len;
-        const sprite = ls.items[sprite_index];
-
-        rl.beginDrawing();
-        rl.clearBackground(Color.white);
-        rl.drawTextureRec(
-            texture,
-            // .{ .x = 100, .y = 293, .width = 23, .height = 42 },
-            .{ .x = sprite.x, .y = sprite.y, .width = sprite.width, .height = sprite.height },
-            .{ .x = 200, .y = 200 },
-            Color.white,
-        );
-        rl.drawText(
-            "this IS a texture loaded from an image!",
-            300,
-            370,
-            10,
-            Color.gray,
-        );
-        rl.endDrawing();
+    const readBytes = try file.readAll(buffer);
+    if (readBytes != fileSize) {
+        return error.UnexpectedEOF;
     }
+
+    return buffer;
+}
+
+// pub const Map = struct { width: i32, height: i32, tilewidth: i32, tileheight: i32, infinite: bool };
+
+pub fn main() !void {
+    var gpa: std.heap.DebugAllocator(.{}) = .init;
+    var allocator: std.mem.Allocator = gpa.allocator();
+    defer _ = gpa.deinit();
+
+    // const content = try read_text_file(allocator, "resources/tiled/map.json");
+    const content = try read_text_file(allocator, "resources/example_woodland.json");
+    defer allocator.free(content);
+    // std.debug.print("{s}\n", .{content});
+    const options: ParseOptions = .{
+        .ignore_unknown_fields = true,
+    };
+    const map_parsed = try std.json.parseFromSlice(tiled.Map, allocator, content, options);
+    defer map_parsed.deinit();
+    const map = map_parsed.value;
+    if (map.properties) |pts|
+        std.debug.print(">>>>>>> {s}\n", .{pts[0].type});
+    std.debug.print("{s}\n", .{@tagName(map.renderorder)});
+    // std.debug.print("{s}\n", .{map.renderorder});
 }
