@@ -5,10 +5,10 @@ const print = std.debug.print;
 const rand = std.crypto.random;
 const time = std.time;
 const sleep = std.Thread.sleep;
-const screenWidth = 1200;
-const screenHeight = 800;
+const screen_width = 640;
+const screen_height = 360;
 
-const FIXED_DT: f64 = 1.0 / 30.0;
+const FIXED_DT: f64 = 1.0 / 24.0;
 
 fn get_current_time() f64 {
     return @as(f64, @floatFromInt(time.milliTimestamp())) / 1000.0;
@@ -42,45 +42,66 @@ const Tank = struct {
     world: *World,
     sprite: Sprite,
     tranform: Transform,
-    prev_transform: ?Transform = null,
     direction: Direction = .up,
     velocity: f32 = 10,
+    moving: bool = false,
 
     pub fn update(self: *Tank, dt: f64) void {
-        if (self.world.new_render) {
-            self.prev_transform = self.tranform.copy();
-        }
+        self.moving = false;
         if (self.world.input_manager.left_key) {
             self.direction = .left;
+            self.moving = true;
             self.tranform.rotation = 180;
             self.tranform.position.x -= self.velocity;
         }
         if (self.world.input_manager.right_key) {
             self.direction = .right;
+            self.moving = true;
             self.tranform.rotation = 0;
             self.tranform.position.x += self.velocity;
         }
         if (self.world.input_manager.up_key) {
             self.direction = .up;
+            self.moving = true;
             self.tranform.rotation = 270;
             self.tranform.position.y -= self.velocity;
         }
         if (self.world.input_manager.down_key) {
-            self.direction = .left;
+            self.direction = .down;
+            self.moving = true;
             self.tranform.rotation = 90;
             self.tranform.position.y += self.velocity;
         }
         print("Update tank with dt {d}\n", .{dt});
     }
 
+    fn get_interpolation_pos(self: *const Tank, alpha: f64) rl.Vector2 {
+        var pos = self.tranform.position;
+        const a: f32 = @floatCast(alpha);
+        if (self.direction == .up) {
+            pos.y -= a * self.velocity;
+        }
+        if (self.direction == .down) {
+            pos.y += a * self.velocity;
+        }
+        if (self.direction == .left) {
+            pos.x -= a * self.velocity;
+        }
+        if (self.direction == .right) {
+            pos.x += a * self.velocity;
+        }
+        return pos;
+    }
+
     pub fn render(self: *Tank, alpha: f64) void {
         print("Render tank with alpha {d}\n", .{alpha});
+        const render_pos = if (self.moving) self.get_interpolation_pos(alpha) else self.tranform.position;
         rl.drawTexturePro(
             self.world.resource_manager.textures.get(self.sprite.texture).?,
             self.sprite.source,
             rl.Rectangle{
-                .x = self.tranform.position.x,
-                .y = self.tranform.position.y,
+                .x = render_pos.x,
+                .y = render_pos.y,
                 .width = self.sprite.source.width,
                 .height = self.sprite.source.height,
             },
@@ -101,7 +122,6 @@ const World = struct {
     resource_manager: ResourceManager,
     input_manager: InputManager,
     player: ?Tank = null,
-    new_render: bool = false,
 
     pub fn init(allocator: Allocator) World {
         return World{
@@ -124,9 +144,6 @@ const World = struct {
     pub fn update(self: *World, dt: f64) void {
         print("Update with dt {d}\n", .{dt});
         self.player.?.update(dt);
-        if (self.new_render) {
-            self.new_render = false;
-        }
     }
 
     pub fn render(self: *World, alpha: f64) void {
@@ -178,15 +195,41 @@ const InputManager = struct {
     }
 };
 
+fn draw_map() void {
+    const grid_size: i32 = 15;
+    for (0..(screen_height / grid_size)) |idx| {
+        const i: i32 = @intCast(idx);
+        rl.drawRectangleLines(
+            0,
+            grid_size * i,
+            screen_width,
+            grid_size,
+            rl.Color.red,
+        );
+    }
+    for (0..(screen_width / grid_size)) |idx| {
+        const i: i32 = @intCast(idx);
+        rl.drawRectangleLines(
+            grid_size * i,
+            0,
+            grid_size,
+            screen_height,
+            rl.Color.red,
+        );
+    }
+}
+
 pub fn main() !void {
     var gpa = std.heap.DebugAllocator(.{}){};
     defer _ = gpa.deinit();
     const allocator = gpa.allocator();
 
     //Initialization
+    const configflags: rl.ConfigFlags = .{ .vsync_hint = true };
+    rl.setConfigFlags(configflags);
     rl.initWindow(
-        screenWidth,
-        screenHeight,
+        screen_width,
+        screen_height,
         "raylib [textures] example - image loading",
     );
     defer rl.closeWindow();
@@ -205,7 +248,7 @@ pub fn main() !void {
             .height = 26,
         },
     }, .tranform = .{
-        .position = rl.Vector2.init(100, 200),
+        .position = rl.Vector2.init(15, 13),
     } };
     world.player = tank;
 
@@ -217,7 +260,6 @@ pub fn main() !void {
             world.current_time = new_time;
             accumulator += frame_time;
 
-            world.new_render = true;
             while (accumulator > FIXED_DT) {
                 world.update(FIXED_DT);
                 accumulator -= FIXED_DT;
@@ -226,6 +268,7 @@ pub fn main() !void {
             const alpha = accumulator / FIXED_DT;
             rl.beginDrawing();
             rl.clearBackground(rl.Color.white);
+            draw_map();
             world.render(alpha);
             rl.endDrawing();
 
