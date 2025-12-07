@@ -41,42 +41,78 @@ const Sprite = struct {
 const Tank = struct {
     world: *World,
     sprite: Sprite,
-    tranform: Transform,
+    transform: Transform,
     direction: Direction = .up,
-    velocity: f32 = 10,
+    velocity: f32 = 30,
     moving: bool = false,
+
+    fn update_pos(self: *Tank) void {
+        self.transform.position = self.get_next_pos();
+    }
+
+    fn get_next_pos(self: *const Tank) rl.Vector2 {
+        var new_pos = self.transform.position;
+        if (!self.moving) {
+            return new_pos;
+        }
+        if (self.direction == .up) {
+            new_pos.y -= self.velocity;
+        }
+        if (self.direction == .down) {
+            new_pos.y += self.velocity;
+        }
+        if (self.direction == .left) {
+            new_pos.x -= self.velocity;
+        }
+        if (self.direction == .right) {
+            new_pos.x += self.velocity;
+        }
+        return new_pos;
+    }
 
     pub fn update(self: *Tank, dt: f64) void {
         self.moving = false;
+        const old_direction = self.direction;
+        var new_direction = old_direction;
         if (self.world.input_manager.left_key) {
-            self.direction = .left;
+            new_direction = .left;
             self.moving = true;
-            self.tranform.rotation = 180;
-            self.tranform.position.x -= self.velocity;
+            self.transform.rotation = 180;
         }
         if (self.world.input_manager.right_key) {
-            self.direction = .right;
+            new_direction = .right;
             self.moving = true;
-            self.tranform.rotation = 0;
-            self.tranform.position.x += self.velocity;
+            self.transform.rotation = 0;
         }
         if (self.world.input_manager.up_key) {
-            self.direction = .up;
+            new_direction = .up;
             self.moving = true;
-            self.tranform.rotation = 270;
-            self.tranform.position.y -= self.velocity;
+            self.transform.rotation = 270;
         }
         if (self.world.input_manager.down_key) {
-            self.direction = .down;
+            new_direction = .down;
             self.moving = true;
-            self.tranform.rotation = 90;
-            self.tranform.position.y += self.velocity;
+            self.transform.rotation = 90;
+        }
+        // if (new_direction != old_direction) {
+        //     // finish interpole move
+        //     self.update_pos();
+        //     self.direction = new_direction;
+        // }
+
+        // finish interpole move
+        if (self.moving) {
+            self.update_pos();
+        }
+        self.direction = new_direction;
+        if (self.moving) {
+            self.update_pos();
         }
         print("Update tank with dt {d}\n", .{dt});
     }
 
     fn get_interpolation_pos(self: *const Tank, alpha: f64) rl.Vector2 {
-        var pos = self.tranform.position;
+        var pos = self.transform.position;
         const a: f32 = @floatCast(alpha);
         if (self.direction == .up) {
             pos.y -= a * self.velocity;
@@ -94,8 +130,22 @@ const Tank = struct {
     }
 
     pub fn render(self: *Tank, alpha: f64) void {
-        print("Render tank with alpha {d}\n", .{alpha});
-        const render_pos = if (self.moving) self.get_interpolation_pos(alpha) else self.tranform.position;
+        // const render_pos = if (self.moving) self.get_interpolation_pos(alpha) else self.transform.position;
+        var render_pos = self.transform.position;
+        if (self.moving) {
+            const next_pos = self.get_next_pos();
+            render_pos = self.transform.position.lerp(next_pos, @floatCast(alpha));
+        }
+        print(
+            "Render tank with alpha {d}, physic pos ({d}, {d}), render pos ({d}, {d})\n",
+            .{
+                alpha,
+                self.transform.position.x,
+                self.transform.position.y,
+                render_pos.x,
+                render_pos.y,
+            },
+        );
         rl.drawTexturePro(
             self.world.resource_manager.textures.get(self.sprite.texture).?,
             self.sprite.source,
@@ -109,7 +159,7 @@ const Tank = struct {
                 self.sprite.source.width / 2,
                 self.sprite.source.height / 2,
             ),
-            self.tranform.rotation,
+            self.transform.rotation,
             self.sprite.tint,
         );
     }
@@ -247,7 +297,7 @@ pub fn main() !void {
             .width = 30,
             .height = 26,
         },
-    }, .tranform = .{
+    }, .transform = .{
         .position = rl.Vector2.init(15, 13),
     } };
     world.player = tank;
