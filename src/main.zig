@@ -43,7 +43,7 @@ const Tank = struct {
     sprite: Sprite,
     transform: Transform,
     direction: Direction = .up,
-    velocity: f32 = 30,
+    velocity: f32 = 10,
     moving: bool = false,
 
     fn update_pos(self: *Tank) void {
@@ -52,61 +52,56 @@ const Tank = struct {
 
     fn get_next_pos(self: *const Tank) rl.Vector2 {
         var new_pos = self.transform.position;
-        if (!self.moving) {
-            return new_pos;
-        }
-        if (self.direction == .up) {
-            new_pos.y -= self.velocity;
-        }
-        if (self.direction == .down) {
-            new_pos.y += self.velocity;
-        }
-        if (self.direction == .left) {
-            new_pos.x -= self.velocity;
-        }
-        if (self.direction == .right) {
-            new_pos.x += self.velocity;
+        // if (!self.moving) {
+        //     return new_pos;
+        // }
+        switch (self.direction) {
+            .up => {
+                new_pos.y -= self.velocity;
+            },
+            .down => {
+                new_pos.y += self.velocity;
+            },
+            .left => {
+                new_pos.x -= self.velocity;
+            },
+            else => {
+                new_pos.x += self.velocity;
+            },
         }
         return new_pos;
     }
 
     pub fn update(self: *Tank, dt: f64) void {
+        const prev_moving = self.moving;
+        const prev_direction = self.direction;
         self.moving = false;
-        const old_direction = self.direction;
-        var new_direction = old_direction;
         if (self.world.input_manager.left_key) {
-            new_direction = .left;
+            self.direction = .left;
             self.moving = true;
             self.transform.rotation = 180;
         }
         if (self.world.input_manager.right_key) {
-            new_direction = .right;
+            self.direction = .right;
             self.moving = true;
             self.transform.rotation = 0;
         }
         if (self.world.input_manager.up_key) {
-            new_direction = .up;
+            self.direction = .up;
             self.moving = true;
             self.transform.rotation = 270;
         }
         if (self.world.input_manager.down_key) {
-            new_direction = .down;
+            self.direction = .down;
             self.moving = true;
             self.transform.rotation = 90;
         }
-        // if (new_direction != old_direction) {
-        //     // finish interpole move
-        //     self.update_pos();
-        //     self.direction = new_direction;
-        // }
-
-        // finish interpole move
-        if (self.moving) {
+        // finish interpole move if prev_moving is true
+        if (prev_moving) {
             self.update_pos();
         }
-        self.direction = new_direction;
-        if (self.moving) {
-            self.update_pos();
+        if (prev_direction != self.direction) {
+            print("????????", .{});
         }
         print("Update tank with dt {d}\n", .{dt});
     }
@@ -114,17 +109,19 @@ const Tank = struct {
     fn get_interpolation_pos(self: *const Tank, alpha: f64) rl.Vector2 {
         var pos = self.transform.position;
         const a: f32 = @floatCast(alpha);
-        if (self.direction == .up) {
-            pos.y -= a * self.velocity;
-        }
-        if (self.direction == .down) {
-            pos.y += a * self.velocity;
-        }
-        if (self.direction == .left) {
-            pos.x -= a * self.velocity;
-        }
-        if (self.direction == .right) {
-            pos.x += a * self.velocity;
+        switch (self.direction) {
+            .up => {
+                pos.y -= a * self.velocity;
+            },
+            .down => {
+                pos.y += a * self.velocity;
+            },
+            .left => {
+                pos.x -= a * self.velocity;
+            },
+            else => {
+                pos.x += a * self.velocity;
+            },
         }
         return pos;
     }
@@ -246,7 +243,7 @@ const InputManager = struct {
 };
 
 fn draw_map() void {
-    const grid_size: i32 = 15;
+    const grid_size: i32 = 10;
     for (0..(screen_height / grid_size)) |idx| {
         const i: i32 = @intCast(idx);
         rl.drawRectangleLines(
